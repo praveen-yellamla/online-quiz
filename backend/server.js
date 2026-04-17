@@ -49,7 +49,8 @@ const frontendDistPath = path.join(__dirname, '../frontend/dist');
 app.use(express.static(frontendDistPath));
 
 // Deep Linking Support: Redirects all non-API routes to the React SPA entry point
-app.get('*', (req, res) => {
+// Note: In Express 5.x, the syntax for wildcards has changed; '/*' is used for catch-all
+app.get('/*', (req, res) => {
   res.sendFile(path.join(frontendDistPath, 'index.html'));
 });
 
