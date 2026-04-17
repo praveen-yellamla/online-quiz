@@ -30,33 +30,39 @@ exports.startExam = async (req, res) => {
       return res.status(403).json({ success: false, message: 'This assessment is currently in DRAFT mode and not accessible.' });
     }
 
-    // --- High-Precision UTC Time Synchronization ---
+    // --- High-Precision UTC Time Synchronization & Debugging ---
     const now = new Date();
     const startTime = new Date(exam.start_time);
     const endTime = new Date(exam.end_time);
 
-    // 1. Check if exam has even started
-    if (now < startTime) {
+    console.log(`[TIME_CHECK] Exam ID: ${examId} | User: ${studentId}`);
+    console.log(`[TIME_CHECK] Server Now  (UTC): ${now.toISOString()}`);
+    console.log(`[TIME_CHECK] Exam Start (UTC): ${startTime.toISOString()}`);
+    console.log(`[TIME_CHECK] Exam End   (UTC): ${endTime.toISOString()}`);
+
+    // 1. Check if exam has started (With 5-minute SAFETY BUFFER for sync drifts)
+    const fiveMinBufferMs = 5 * 60 * 1000;
+    if (now.getTime() < (startTime.getTime() - fiveMinBufferMs)) {
       return res.status(403).json({ 
         success: false, 
-        message: `DEPLOIMENT_ERROR: Assessment protocol has not initialized yet. Expected at: ${startTime.toUTCString()} (UTC)` 
+        message: `PROTOCOL_INITIALIZATION_FAILURE: Assessment deployment scheduled for ${startTime.toUTCString()} (UTC). Current server time is ${now.toUTCString()}.` 
       });
     }
 
     // 2. Check if total exam window has expired
-    if (now > endTime) {
-      return res.status(403).json({ success: false, message: 'CRITICAL_TIMEOUT: Assessment recruitment window has closed permanently.' });
+    if (now.getTime() > endTime.getTime()) {
+      return res.status(403).json({ success: false, message: 'SESSION_EXPIRY: The assessment availability window has closed.' });
     }
 
     // 3. 10-Minute Entry Window Protocol (Only for NEW attempts)
     const existingAttempt = await db.prepare('SELECT * FROM attempts WHERE exam_id = ? AND student_id = ?').get(examId, studentId);
     
     if (!existingAttempt) {
-      const graceTime = new Date(startTime.getTime() + 10 * 60 * 1000); // 10 Min Shadow Window
-      if (now > graceTime) {
+      const graceTimeMs = startTime.getTime() + (10 * 60 * 1000); 
+      if (now.getTime() > graceTimeMs) {
         return res.status(403).json({ 
           success: false, 
-          message: 'ACCESS_REVOKED: You missed the 10-minute startup window. Access to this assessment is now restricted.' 
+          message: 'ENTRY_WINDOW_CLOSED: New candidate recruitment for this assessment closed at T+10 minutes.' 
         });
       }
     } else if (existingAttempt.submitted_at) {
