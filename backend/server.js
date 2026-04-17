@@ -37,10 +37,21 @@ app.get('/api/test', (req, res) => {
   res.json({ message: "Backend working" });
 });
 
+const path = require('path');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/student', studentRoutes);
+
+// Static Asset Management (Enables unified hosting on Render)
+const frontendDistPath = path.join(__dirname, '../frontend/dist');
+app.use(express.static(frontendDistPath));
+
+// Deep Linking Support: Redirects all non-API routes to the React SPA entry point
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
+});
 
 // Global Error Handler
 app.use((err, req, res, next) => {
