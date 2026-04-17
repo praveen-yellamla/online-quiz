@@ -30,28 +30,30 @@ exports.startExam = async (req, res) => {
       return res.status(403).json({ success: false, message: 'This assessment is currently in DRAFT mode and not accessible.' });
     }
 
-    // --- High-Precision UTC Time Synchronization & Debugging ---
+    // --- IST-Aware Time Synchronization & Debugging ---
     const now = new Date();
     const startTime = new Date(exam.start_time);
     const endTime = new Date(exam.end_time);
 
-    console.log(`[TIME_CHECK] Exam ID: ${examId} | User: ${studentId}`);
-    console.log(`[TIME_CHECK] Server Now  (UTC): ${now.toISOString()}`);
-    console.log(`[TIME_CHECK] Exam Start (UTC): ${startTime.toISOString()}`);
-    console.log(`[TIME_CHECK] Exam End   (UTC): ${endTime.toISOString()}`);
+    console.log(`[TIME_SYNC] Server Now (UTC): ${now.toISOString()}`);
+    console.log(`[TIME_SYNC] Exam Start (UTC): ${startTime.toISOString()}`);
 
-    // 1. Check if exam has started (With 5-minute SAFETY BUFFER for sync drifts)
-    const fiveMinBufferMs = 5 * 60 * 1000;
-    if (now.getTime() < (startTime.getTime() - fiveMinBufferMs)) {
+    // Convert UTC to IST for user-facing telemetry
+    const istOptions = { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true };
+    const istStartTime = startTime.toLocaleTimeString('en-IN', istOptions);
+
+    // 1. Check if exam has started (With 2-minute ENTRANCE TOLERANCE)
+    const twoMinBufferMs = 2 * 60 * 1000;
+    if (now.getTime() < (startTime.getTime() - twoMinBufferMs)) {
       return res.status(403).json({ 
         success: false, 
-        message: `PROTOCOL_INITIALIZATION_FAILURE: Assessment deployment scheduled for ${startTime.toUTCString()} (UTC). Current server time is ${now.toUTCString()}.` 
+        message: `DEPLOIMENT_ERROR: This assessment protocol will initialize at ${istStartTime} IST. Please wait for the scheduled synchronization.` 
       });
     }
 
     // 2. Check if total exam window has expired
     if (now.getTime() > endTime.getTime()) {
-      return res.status(403).json({ success: false, message: 'SESSION_EXPIRY: The assessment availability window has closed.' });
+      return res.status(403).json({ success: false, message: 'SESSION_EXPIRY: The global assessment window has closed for this cluster.' });
     }
 
     // 3. 10-Minute Entry Window Protocol (Only for NEW attempts)

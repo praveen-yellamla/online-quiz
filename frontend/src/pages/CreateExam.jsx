@@ -153,7 +153,15 @@ const CreateExam = () => {
     
     setLoading(true);
     try {
-      const examRes = await api.post('/admin/exams', examData);
+      // --- Timezone Awareness Patch ---
+      // We convert the local datetime string into a true UTC ISO string
+      const preparedData = {
+        ...examData,
+        start_time: examData.start_time ? new Date(examData.start_time).toISOString() : null,
+        end_time: examData.end_time ? new Date(examData.end_time).toISOString() : null
+      };
+
+      const examRes = await api.post('/admin/exams', preparedData);
       const examId = examRes.data.examId;
 
       await api.post('/admin/questions/upload', { 
