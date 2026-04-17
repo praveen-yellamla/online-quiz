@@ -30,61 +30,61 @@ exports.startExam = async (req, res) => {
       return res.status(403).json({ success: false, message: 'This assessment is currently in DRAFT mode and not accessible.' });
     }
 
-    // --- IST-Aware Time Synchronization & Debugging ---
+    // --- Simplified Time Correction Logic ---
     const now = new Date();
     const startTime = new Date(exam.start_time);
     const endTime = new Date(exam.end_time);
 
-    console.log(`[TIME_SYNC] Server Now (UTC): ${now.toISOString()}`);
-    console.log(`[TIME_SYNC] Exam Start (UTC): ${startTime.toISOString()}`);
+    console.log("NOW (Server):", now.toISOString());
+    console.log("START (DB): ", startTime.toISOString());
+    console.log("END (DB):   ", endTime.toISOString());
 
-    // Convert UTC to IST for user-facing telemetry
-    const istOptions = { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true };
-    const istStartTime = startTime.toLocaleTimeString('en-IN', istOptions);
-
-    // 1. Check if exam has started (With 2-minute ENTRANCE TOLERANCE)
-    const twoMinBufferMs = 2 * 60 * 1000;
-    if (now.getTime() < (startTime.getTime() - twoMinBufferMs)) {
-      return res.status(403).json({ 
-        success: false, 
-        message: `DEPLOIMENT_ERROR: This assessment protocol will initialize at ${istStartTime} IST. Please wait for the scheduled synchronization.` 
+    // 1. NOT STARTED Condition (With 2-min buffer)
+    if (now < new Date(startTime.getTime() - 2 * 60 * 1000)) {
+      return res.status(403).json({
+        success: false,
+        message: "Assessment deployment has not reached the scheduled start time yet."
       });
     }
 
-    // 2. Check if total exam window has expired
-    if (now.getTime() > endTime.getTime()) {
-      return res.status(403).json({ success: false, message: 'SESSION_EXPIRY: The global assessment window has closed for this cluster.' });
+    // 2. EXPIRED Condition (With 2-min buffer)
+    if (now > new Date(endTime.getTime() + 2 * 60 * 1000)) {
+      return res.status(403).json({
+        success: false,
+        message: "CRITICAL_EXPIRY: This assessment window is now closed."
+      });
     }
 
-    // 3. 10-Minute Entry Window Protocol (Only for NEW attempts)
+    // 3. 10-Min Grace Logic (Only for students who never clicked "Start")
     const existingAttempt = await db.prepare('SELECT * FROM attempts WHERE exam_id = ? AND student_id = ?').get(examId, studentId);
     
     if (!existingAttempt) {
-      const graceTimeMs = startTime.getTime() + (10 * 60 * 1000); 
-      if (now.getTime() > graceTimeMs) {
-        return res.status(403).json({ 
-          success: false, 
-          message: 'ENTRY_WINDOW_CLOSED: New candidate recruitment for this assessment closed at T+10 minutes.' 
+      const graceLimit = new Date(startTime.getTime() + 10 * 60 * 1000);
+      if (now > graceLimit) {
+        return res.status(403).json({
+          success: false,
+          message: "MISSED_WINDOW: You failed to initialize the exam within the 10-minute startup protocol."
         });
       }
-    } else if (existingAttempt.submitted_at) {
-      // Handle re-attempt permissions
-      const permission = await db.prepare('SELECT * FROM reattempt_permissions WHERE exam_id = ? AND user_id = ?').get(examId, studentId);
-      if (!permission) {
-        return res.status(403).json({ success: false, message: 'PROTOCOL_VIOLATION: Multiple submission attempts detected for current credentials.' });
-      }
-      // If permission exists, we will delete it and create a fresh attempt (or repurpose old)
-      await db.prepare('DELETE FROM reattempt_permissions WHERE id = ?').run(permission.id);
     }
 
-    // If attempt exists but not submitted, it's a resume; Otherwise, create new.
+    // AUTH OK: Proceed to create/resume attempt
     let attemptId;
     if (existingAttempt && !existingAttempt.submitted_at) {
       attemptId = existingAttempt.id;
+    } else if (existingAttempt && existingAttempt.submitted_at) {
+      // Check for re-attempt permission
+      const permission = await db.prepare('SELECT * FROM reattempt_permissions WHERE exam_id = ? AND user_id = ?').get(examId, studentId);
+      if (!permission) {
+        return res.status(403).json({ success: false, message: 'REATTEMPT_DENIED: Multiple submissions are restricted.' });
+      }
+      await db.prepare('DELETE FROM reattempt_permissions WHERE id = ?').run(permission.id);
+      const result = await db.prepare('INSERT INTO attempts (student_id, exam_id, start_time) VALUES (?, ?, ?)')
+                             .run(studentId, examId, now.toISOString());
+      attemptId = Number(result.lastInsertRowid);
     } else {
-      const result = await db.prepare(
-        'INSERT INTO attempts (student_id, exam_id, start_time) VALUES (?, ?, ?)'
-      ).run(studentId, examId, now.toISOString());
+      const result = await db.prepare('INSERT INTO attempts (student_id, exam_id, start_time) VALUES (?, ?, ?)')
+                             .run(studentId, examId, now.toISOString());
       attemptId = Number(result.lastInsertRowid);
     }
 
