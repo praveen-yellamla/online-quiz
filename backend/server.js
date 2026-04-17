@@ -37,24 +37,14 @@ app.get('/api/test', (req, res) => {
   res.json({ message: "Backend working" });
 });
 
-const path = require('path');
-
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/student', studentRoutes);
 
-// Static Asset Management (Enables unified hosting on Render)
-// The build script moves frontend/dist to backend/dist for reliable access
-const frontendDistPath = path.join(__dirname, 'dist');
-app.use(express.static(frontendDistPath));
-
-// Deep Linking Support: Catch-all middleware to serve React SPA for any non-API routes
-// Note: We use a patternless middleware to avoid Express 5 path-to-regexp compatibility issues
-app.use((req, res, next) => {
-  // If it's an API route that somehow reached here, let it pass to the error handler
-  if (req.path.startsWith('/api/')) return next();
-  res.sendFile(path.join(frontendDistPath, 'index.html'));
+// API Health Check (Core Entry Point)
+app.get('/', (req, res) => {
+  res.json({ message: "API running successfully 🚀" });
 });
 
 // Global Error Handler
