@@ -11,6 +11,7 @@ const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const superAdminRoutes = require('./routes/superAdmin');
 const studentRoutes = require('./routes/student');
+const codeRoutes = require('./routes/code');
 
 const app = express();
 const server = http.createServer(app);
@@ -44,6 +45,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/student', studentRoutes);
+app.use('/api/code', codeRoutes);
 
 // API Health Check (Core Entry Point)
 app.get('/', (req, res) => {

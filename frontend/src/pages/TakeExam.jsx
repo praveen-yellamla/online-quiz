@@ -136,13 +136,21 @@ const TakeExam = () => {
     setIsRunning(true);
     setTestResult(null);
     try {
-      const resp = await api.post('/student/exams/run', { 
+      const resp = await api.post('/code/run', { 
         code: answers[currentQ.id] || '', 
-        question_id: currentQ.id 
+        language: exam?.language || 'javascript'
       });
-      setTestResult(resp.data);
+      setTestResult({
+        output: resp.data.output,
+        pass: resp.data.success && resp.data.exitCode === 0,
+        executionTime: 0 // Piston doesn't easily give this in simple mode
+      });
     } catch (err) {
-      setTestResult({ output: 'FATAL_SYSTEM_ERROR: Sandbox failed to initialize.', success: false });
+      setTestResult({ 
+        output: 'FATAL_SYSTEM_ERROR: Sandbox failed to initialize.', 
+        pass: false,
+        executionTime: 0 
+      });
     } finally {
       setIsRunning(false);
     }
@@ -412,6 +420,7 @@ const TakeExam = () => {
                   <div style={{ borderRadius: '0.75rem', overflow: 'hidden', border: '1px solid var(--border)', flex: 1 }}>
                     <Editor
                       height="350px"
+                      language={(exam?.language || 'javascript').toLowerCase()}
                       defaultLanguage="javascript"
                       theme="vs-dark"
                       value={answers[currentQ.id] || '// Build your solution here...'}
