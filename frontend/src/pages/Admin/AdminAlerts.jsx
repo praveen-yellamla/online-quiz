@@ -12,7 +12,7 @@ const AdminAlerts = () => {
 
   useEffect(() => {
     // Initialize Socket Connection
-    const s = io('http://localhost:5001');
+    const s = io('https://online-quiz-8xb0.onrender.com');
     setSocket(s);
 
     s.on('connect', () => {

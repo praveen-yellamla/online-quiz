@@ -51,7 +51,7 @@ const Layout = ({ children }) => {
   React.useEffect(() => {
     if (!user || user.role === 'student') return;
     
-    const socket = io('http://localhost:5001');
+    const socket = io('https://online-quiz-8xb0.onrender.com');
     socket.on('connect', () => {
        socket.emit('join_track', { language: user.language, role: user.role });
     });
