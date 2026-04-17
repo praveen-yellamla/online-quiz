@@ -108,20 +108,27 @@ const TakeExam = () => {
       if (!imageSrc) {
         console.warn('SECURITY ALERT: Biometric feed initialization failure. Proceeding with BYPASS for testing as per system audit protocol.');
       }
+      
       const res = await api.post('/student/exams/start', { examId, start_image: imageSrc || 'BYPASS_FOR_TESTING' });
-      setAttemptId(res.data.attemptId);
+      const { attemptId, duration, endTime, serverTime } = res.data;
+      
+      setAttemptId(attemptId);
       
       const qRes = await api.get(`/student/exams/${examId}/questions`);
       setQuestions(qRes.data.questions);
       
-      // RESUME LOGIC: If server returned existing answers
       if (qRes.data.answers) {
          setAnswers(qRes.data.answers);
       }
       
-      // Calculate time from exam duration if serverEndTime not provided
-      const duration = res.data.duration || 60; 
-      setTimeLeft(duration * 60);
+      // --- CRITICAL TIMER SYNCHRONIZATION ---
+      const serverNow = new Date(serverTime).getTime();
+      const examEnd = new Date(endTime).getTime();
+      const individualDuration = duration * 60; // seconds
+      const globalWindowRemaining = Math.floor((examEnd - serverNow) / 1000);
+      
+      // Time left is the SHORTEST of (Individual Duration) OR (Global Window Expiry)
+      setTimeLeft(Math.max(0, Math.min(individualDuration, globalWindowRemaining)));
       
       setIsVerified(true);
       setLoading(false);

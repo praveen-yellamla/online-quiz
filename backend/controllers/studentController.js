@@ -30,33 +30,66 @@ exports.startExam = async (req, res) => {
       return res.status(403).json({ success: false, message: 'This assessment is currently in DRAFT mode and not accessible.' });
     }
 
+    // --- High-Precision UTC Time Synchronization ---
     const now = new Date();
-    if (exam.start_time && new Date(exam.start_time) > now) {
-      return res.status(403).json({ success: false, message: `Access denied. Deployment scheduled for ${new Date(exam.start_time).toLocaleString()}.` });
-    }
-    if (exam.end_time && new Date(exam.end_time) < now) {
-      return res.status(403).json({ success: false, message: 'Assessment window has expired.' });
-    }
+    const startTime = new Date(exam.start_time);
+    const endTime = new Date(exam.end_time);
 
-    const existingAttempt = await db.prepare('SELECT * FROM attempts WHERE exam_id = ? AND student_id = ? AND submitted_at IS NOT NULL').get(examId, studentId);
-    const permission = await db.prepare('SELECT * FROM reattempt_permissions WHERE exam_id = ? AND user_id = ?').get(examId, studentId);
-
-    if (existingAttempt && !permission) {
-      return res.status(403).json({ success: false, message: 'Protocol violation: Multiple attempts restricted for this credential.' });
+    // 1. Check if exam has even started
+    if (now < startTime) {
+      return res.status(403).json({ 
+        success: false, 
+        message: `DEPLOIMENT_ERROR: Assessment protocol has not initialized yet. Expected at: ${startTime.toUTCString()} (UTC)` 
+      });
     }
 
-    const result = await db.prepare(
-      'INSERT INTO attempts (student_id, exam_id, start_time) VALUES (?, ?, ?)'
-    ).run(studentId, examId, now.toISOString());
+    // 2. Check if total exam window has expired
+    if (now > endTime) {
+      return res.status(403).json({ success: false, message: 'CRITICAL_TIMEOUT: Assessment recruitment window has closed permanently.' });
+    }
 
-    if (permission) {
+    // 3. 10-Minute Entry Window Protocol (Only for NEW attempts)
+    const existingAttempt = await db.prepare('SELECT * FROM attempts WHERE exam_id = ? AND student_id = ?').get(examId, studentId);
+    
+    if (!existingAttempt) {
+      const graceTime = new Date(startTime.getTime() + 10 * 60 * 1000); // 10 Min Shadow Window
+      if (now > graceTime) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'ACCESS_REVOKED: You missed the 10-minute startup window. Access to this assessment is now restricted.' 
+        });
+      }
+    } else if (existingAttempt.submitted_at) {
+      // Handle re-attempt permissions
+      const permission = await db.prepare('SELECT * FROM reattempt_permissions WHERE exam_id = ? AND user_id = ?').get(examId, studentId);
+      if (!permission) {
+        return res.status(403).json({ success: false, message: 'PROTOCOL_VIOLATION: Multiple submission attempts detected for current credentials.' });
+      }
+      // If permission exists, we will delete it and create a fresh attempt (or repurpose old)
       await db.prepare('DELETE FROM reattempt_permissions WHERE id = ?').run(permission.id);
     }
 
-    res.status(201).json({ success: true, attemptId: Number(result.lastInsertRowid), duration: exam.duration });
+    // If attempt exists but not submitted, it's a resume; Otherwise, create new.
+    let attemptId;
+    if (existingAttempt && !existingAttempt.submitted_at) {
+      attemptId = existingAttempt.id;
+    } else {
+      const result = await db.prepare(
+        'INSERT INTO attempts (student_id, exam_id, start_time) VALUES (?, ?, ?)'
+      ).run(studentId, examId, now.toISOString());
+      attemptId = Number(result.lastInsertRowid);
+    }
+
+    res.status(201).json({ 
+      success: true, 
+      attemptId, 
+      duration: exam.duration,
+      serverTime: now.toISOString(),
+      endTime: endTime.toISOString() 
+    });
   } catch (err) {
     console.error('startExam error:', err);
-    res.status(500).json({ success: false, message: 'Infrastructure failure: Could not initialize session.' });
+    res.status(500).json({ success: false, message: 'Infrastructure failure: Could not initialize secure session.' });
   }
 };
 
