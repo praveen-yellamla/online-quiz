@@ -392,28 +392,36 @@ exports.addQuestion = async (req, res) => {
 
 exports.bulkUploadQuestions = async (req, res) => {
   const { exam_id, questions } = req.body;
-  try {
-    const insert = db.prepare(`
-      INSERT INTO questions (exam_id, type, question, options, correct_answer, points)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
+  
+  if (!questions || !Array.isArray(questions)) {
+    return res.status(400).json({ success: false, message: 'Invalid payload: questions array missing.' });
+  }
 
-    const transaction = db.transaction(async (qs) => {
+  console.log(`[UPLOAD] Starting batch ingestion for Exam ${exam_id}. Count: ${questions.length}`);
+
+  try {
+    const transaction = db.transaction(async (tx, qs) => {
       for (const q of qs) {
-        await insert.run(
-          exam_id, 
-          q.type || 'mcq', 
-          q.question, 
-          q.type === 'mcq' ? JSON.stringify(q.options || []) : null, 
-          q.correct_answer,
-          q.points || 5
-        );
+        await tx.execute({
+          sql: `INSERT INTO questions (exam_id, type, question, options, correct_answer, points)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+          args: [
+            exam_id, 
+            q.type || 'mcq', 
+            q.question, 
+            q.type === 'mcq' ? JSON.stringify(q.options || []) : null, 
+            q.correct_answer,
+            q.points || 5
+          ]
+        });
       }
     });
 
     await transaction(questions);
+    console.log(`[UPLOAD] Batch ingestion successful for Exam ${exam_id}`);
     res.json({ success: true, message: `${questions.length} questions uploaded successfully` });
   } catch (err) {
+    console.error(`[UPLOAD ERROR] Failed to ingest questions for Exam ${exam_id}:`, err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

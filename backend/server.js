@@ -30,7 +30,10 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(helmet({ crossOriginResourcePolicy: false }));
-app.use(cors());
+app.use(cors({
+  origin: ["https://online-quiz-plum.vercel.app"],
+  credentials: true
+}));
 app.use(morgan('dev'));
 
 app.get('/api/test', (req, res) => {
