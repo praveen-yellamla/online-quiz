@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "cd frontend && npm install && npm run build && cd ../backend && npm install",
+    "build": "cd frontend && npm install && npm run build && cd .. && rm -rf backend/dist && mv frontend/dist backend/dist && cd backend && npm install",
     "start": "cd backend && npm start",
     "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
     "heroku-postbuild": "npm run build"

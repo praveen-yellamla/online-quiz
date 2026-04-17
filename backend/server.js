@@ -45,7 +45,8 @@ app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/student', studentRoutes);
 
 // Static Asset Management (Enables unified hosting on Render)
-const frontendDistPath = path.join(__dirname, '../frontend/dist');
+// The build script moves frontend/dist to backend/dist for reliable access
+const frontendDistPath = path.join(__dirname, 'dist');
 app.use(express.static(frontendDistPath));
 
 // Deep Linking Support: Catch-all middleware to serve React SPA for any non-API routes
