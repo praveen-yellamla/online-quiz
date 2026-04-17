@@ -48,9 +48,11 @@ app.use('/api/student', studentRoutes);
 const frontendDistPath = path.join(__dirname, '../frontend/dist');
 app.use(express.static(frontendDistPath));
 
-// Deep Linking Support: Redirects all non-API routes to the React SPA entry point
-// Note: In Express 5.x, the syntax for wildcards has changed; '/*' is used for catch-all
-app.get('/*', (req, res) => {
+// Deep Linking Support: Catch-all middleware to serve React SPA for any non-API routes
+// Note: We use a patternless middleware to avoid Express 5 path-to-regexp compatibility issues
+app.use((req, res, next) => {
+  // If it's an API route that somehow reached here, let it pass to the error handler
+  if (req.path.startsWith('/api/')) return next();
   res.sendFile(path.join(frontendDistPath, 'index.html'));
 });
 
