@@ -2,6 +2,12 @@
 
 A production-level, high-security enterprise examination ecosystem built for **Crestonix Global Solutions (CGS)**, optimized for high-stakes assessments and track-based candidate evaluation.
 
+## 🌐 Live Deployment
+*   **Production Frontend (Vercel)**: [https://online-quiz-plum.vercel.app/](https://online-quiz-plum.vercel.app/)
+*   **Production API (Render)**: [https://online-quiz-8xb0.onrender.com/](https://online-quiz-8xb0.onrender.com/)
+
+---
+
 ## 🚀 Advanced Features
 
 ### 🔐 1. Multi-Role RBAC (Role-Based Access Control)
